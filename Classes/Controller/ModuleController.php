@@ -62,7 +62,8 @@ class ModuleController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
         $this->conf['clearCache'] = (bool)$extConf['clearCache'];
         $this->conf['langKeysAllowed'] = $this->conf['langKeys'];
         $this->conf['translatorInfo'] = (string)$extConf['translatorInfo'];
-        if (!((bool)$extConf['modifyDefaultLang'] || $GLOBALS['BE_USER']->isAdmin() || $this->conf['modifyKeys'])) {
+        if (!((bool)$extConf['modifyDefaultLang'] || $GLOBALS['BE_USER']->isAdmin() || $this->conf['modifyKeys']) ||
+            (bool)$this->conf['useL10n']) {
             unset($this->conf['langKeysAllowed']['default']);
         }
     }
