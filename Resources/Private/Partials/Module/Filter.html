@@ -14,7 +14,7 @@
 	<f:if condition="{extkey}">
 		<f:form.select name="file" options="{files}" value="{file}" prependOptionValue="0" prependOptionLabel="{f:translate(key:'choose_file')}" class="form-select form-control input-sm" data="{name:'file'}" />
 		<f:if condition="{file}">
-			<f:form.select name="langKeys" options="{conf.langKeys}" value="{langKeys}" multiple="1" class="form-select form-control input-sm" size="{conf.langKeys->f:count()}" data="{name:'langKeys'}" />
+			<f:form.select name="langKeys" options="{conf.langKeys}" value="{langKeys}" multiple="1" class="form-select form-control input-sm" size="7" data="{name:'langKeys'}" />
 		</f:if>
 	</f:if>
 </f:form>
