@@ -1,4 +1,15 @@
 window.addEventListener('DOMContentLoaded', function() {
+
+	// Add event listeners to filter selects to submit the form on change
+	const filterSelects = document.querySelectorAll('select[data-name="extkey"], select[data-name="file"], select[data-name="langKeys"]');
+
+	filterSelects.forEach(select => {
+		select.addEventListener('change', () => {
+			const form = select.closest('form');
+			form.submit();
+		});
+	});
+
 	var el_act = null;	//current drag elem
 	var el_last = null;	//last element with a highlight border
 	var dragging = false;
@@ -16,6 +27,10 @@ window.addEventListener('DOMContentLoaded', function() {
 	translate_form.addEventListener('change', function (e) {
 		formChanged();
 	});
+
+	if (submitButton.classList.contains('btn-danger')) {
+		submitButton.classList.remove('btn-default'); // needed in TYPO3 12
+	}
 
 	function formChanged() {
 		submitButton.classList.add('btn-danger');
@@ -109,6 +124,7 @@ window.addEventListener('DOMContentLoaded', function() {
 			}
 			initrow(newnode);
 			this.parentNode.parentNode.insertBefore(newnode, refnode);
+			inputs[0].focus();
 		});
 	}
 

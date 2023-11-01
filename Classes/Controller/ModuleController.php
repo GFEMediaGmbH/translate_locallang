@@ -62,6 +62,7 @@ class ModuleController extends ActionController
         $this->conf['defaultLangKey'] = (trim($extConf['defaultLangKey'])) ? trim($extConf['defaultLangKey']) : 'en';
         $langKeys = GeneralUtility::trimExplode(',', $extConf['langKeys'], TRUE);
         $this->conf['langKeys'] = array_merge(['default' => $this->conf['defaultLangKey'] . ' (default)'], array_combine($langKeys, $langKeys));
+        $this->conf['sortOnSave'] = isset($extConf['sortOnSave']) && $extConf['sortOnSave'];
         $this->conf['allowedFiles'] = $GLOBALS['BE_USER']->isAdmin() ? [] : GeneralUtility::trimExplode(',', $extConf['allowedFiles'], TRUE);
         $allowedExts = $GLOBALS['BE_USER']->isAdmin() ? [] : GeneralUtility::trimExplode(',', $extConf['allowedExts'], TRUE);
         $this->conf['extFilter'] = trim((string)$extConf['extFilter']);
@@ -80,25 +81,25 @@ class ModuleController extends ActionController
     }
 
     /**
-     * @param string $extension
+     * @param string $extkey
      * @param string $file
      * @param array $langKeys
      * @param bool $sort
      * @param array $overrideLabels
      * @return ResponseInterface
      */
-    public function listAction(string $extension = '', string $file = '', array $langKeys = ['default'], bool $sort = FALSE, array $overrideLabels = []): ResponseInterface
+    public function listAction(string $extkey = '', string $file = '', array $langKeys = ['default'], bool $sort = FALSE, array $overrideLabels = []): ResponseInterface
     {
         $moduledata = TranslateUtility::getModuleData();
         $sessid = $GLOBALS['BE_USER']->getSession()->getIdentifier();
-        if (!empty($moduledata) && $extension !== '0' ) {
-            if (!$extension && $moduledata['extension'] && isset($this->conf['extensions'][$moduledata['extension']])) {
+        if (!empty($moduledata) && $extkey !== '0') {
+            if (!$extkey && $moduledata['extkey'] && isset($this->conf['extensions'][$moduledata['extkey']])) {
                 //restore from moduledata
-                $extension = $moduledata['extension'];
+                $extkey = $moduledata['extkey'];
                 $file = $moduledata['file'];
                 $langKeys = $moduledata['langKeys'];
             }
-            if ($moduledata['sessid'] !== $sessid && $moduledata['extension'] === $extension) {
+            if ($moduledata['sessid'] !== $sessid && $moduledata['extkey'] === $extkey) {
                 $timediff = time()- $moduledata['time'];
                 if ($timediff < 600) {
                     $minutes = (int)(($timediff + 30) / 60);
@@ -120,15 +121,16 @@ class ModuleController extends ActionController
         $files = [];
         $labels = [];
 
-        if ($extension) {
-            if (!isset($this->conf['extensions'][$extension])) {
-                throw new \UnexpectedValueException('Extension not allowed: ' . $extension);
+        if ($extkey) {
+            if (!isset($this->conf['extensions'][$extkey])) {
+                throw new \UnexpectedValueException('Extension not allowed: ' . $extkey);
             }
+            $extension = $this->conf['extensions'][$extkey];
             $l = next($this->conf['langKeys']);
-            $l10ndir = Environment::getLabelsPath() . '/' . $l . '/' . $extension;
+            $l10ndir = Environment::getLabelsPath() . '/' . $l . '/' . $extkey;
             if (!$this->conf['useL10n'] && is_dir($l10ndir)) {
                 $this->addFlashMessage(
-                    $l10ndir . ' directory exists. (You are currently editing the files in typo3conf/ext).', 'Notice', AbstractMessage::NOTICE
+                    $l10ndir . ' directory exists. (You are currently editing the files in the extension directory).', 'Notice', AbstractMessage::NOTICE
                 );
             }
             $files = TranslateUtility::getFileList($extension, $this->conf['allowedFiles']);
@@ -172,18 +174,18 @@ class ModuleController extends ActionController
         }
 
         $this->view->assignMultiple([
-            'extension' => $extension,
+            'extkey' => $extkey,
             'files' => $files,
             'file' => $file,
             'langKeys' => $langKeys,
             'labels' => $labels,
             'conf' => $this->conf,
             'isAdmin' => $GLOBALS['BE_USER']->isAdmin(),
-			'time' => time(),
+            'time' => time(),
         ]);
 
         TranslateUtility::setModuleData([
-            'extension' => $extension,
+            'extkey' => $extkey,
             'file' => $file,
             'langKeys' => $langKeys,
             'time' => time(),
@@ -198,16 +200,17 @@ class ModuleController extends ActionController
     /**
      * @param array $keys
      * @param array $labels
-     * @param string $extension
+     * @param string $extkey
      * @param string $file
      * @param array $langKeys
      * @return ResponseInterface
      */
-    public function saveAction(array $keys, array $labels, string $extension, string $file, array $langKeys): ResponseInterface
+    public function saveAction(array $keys, array $labels, string $extkey, string $file, array $langKeys): ResponseInterface
     {
-        if (!isset($this->conf['extensions'][$extension])) {
-            throw new \UnexpectedValueException('Extension not allowed: ' . $extension);
+        if (!isset($this->conf['extensions'][$extkey])) {
+            throw new \UnexpectedValueException('Extension not allowed: ' . $extkey);
         }
+        $extension = $this->conf['extensions'][$extkey];
         $files = TranslateUtility::getFileList($extension);
         if (!isset($files[$file])) {
             throw new \UnexpectedValueException('File not allowed: ' . $file);
@@ -254,6 +257,10 @@ class ModuleController extends ActionController
             $xliffService->changeKey($key, $keyvalue);
         }
 
+        if ($this->conf['sortOnSave']) {
+            $xliffService->sortByKey();
+        }
+
         //save languages
         foreach($savelangs as $langKey) {
             if ($xliffService->fileExists($langKey) || $xliffService->isLanguageLoaded($langKey)) {
@@ -271,20 +278,21 @@ class ModuleController extends ActionController
         }
 
         return (new ForwardResponse('list'))
-            ->withArguments(['extension' => $extension, 'file' => $file, 'langKeys' => $langKeys]);
+            ->withArguments(['extkey' => $extkey, 'file' => $file, 'langKeys' => $langKeys]);
     }
 
     /**
-     * @param string $extension
+     * @param string $extkey
      * @param string $file
      * @param array $langKeys
      * @return ResponseInterface
      */
-    public function exportCsvAction(string $extension, string $file, array $langKeys): ResponseInterface
+    public function exportCsvAction(string $extkey, string $file, array $langKeys): ResponseInterface
     {
-        if (!isset($this->conf['extensions'][$extension])) {
-            throw new \UnexpectedValueException('Extension not allowed: ' . $extension);
+        if (!isset($this->conf['extensions'][$extkey])) {
+            throw new \UnexpectedValueException('Extension not allowed: ' . $extkey);
         }
+        $extension = $this->conf['extensions'][$extkey];
         $files = TranslateUtility::getFileList($extension);
         if (!isset($files[$file])) {
             throw new \UnexpectedValueException('File not allowed: ' . $file);
@@ -304,7 +312,7 @@ class ModuleController extends ActionController
         $data = &$xliffService->getData();
 
         //output CSV
-        $fileName = $extension . '-' . $file . '.csv';
+        $fileName = $extkey . '-' . $file . '.csv';
         header('Content-Type: text/x-csv');
         header('Content-Disposition: attachment; filename="' . $fileName . '"');
         header('Pragma: no-cache');
@@ -328,14 +336,14 @@ class ModuleController extends ActionController
     }
 
     /**
-     * @param string $extension
+     * @param string $extkey
      * @param string $file
      * @param array  $langKeys
      * @param array  $importFile
      *
      * @return ResponseInterface
      */
-    public function importCsvAction(string $extension, string $file, array $langKeys, array $importFile): ResponseInterface
+    public function importCsvAction(string $extkey, string $file, array $langKeys, array $importFile): ResponseInterface
     {
         $labels = [];
         if (is_uploaded_file($importFile['tmp_name'])) {
@@ -353,7 +361,7 @@ class ModuleController extends ActionController
             if (!$hrow || $hrow[0] !== 'key' || count($hrow) < 2) {
                 $this->addFlashMessage('Invalid file format', 'Error', AbstractMessage::ERROR);
                 return (new ForwardResponse('list'))
-                    ->withArguments(['extension' => $extension, 'file' => $file, 'langKeys' => $langKeys]);
+                    ->withArguments(['extkey' => $extkey, 'file' => $file, 'langKeys' => $langKeys]);
             }
 
             $langKeys = [];
@@ -375,7 +383,7 @@ class ModuleController extends ActionController
         }
 
         return (new ForwardResponse('list'))
-            ->withArguments(['extension' => $extension, 'file' => $file, 'langKeys' => $langKeys, 'sort' => FALSE, 'overrideLabels' => $labels]);
+            ->withArguments(['extkey' => $extkey, 'file' => $file, 'langKeys' => $langKeys, 'sort' => FALSE, 'overrideLabels' => $labels]);
     }
 
     /**
@@ -401,7 +409,7 @@ class ModuleController extends ActionController
                         }
                     }
                     if (!empty($langKeys)) {
-                        $results[] = [$extension, $file, $langKeys];
+                        $results[] = [$extension['key'], $file, $langKeys];
                     }
                 }
             }
@@ -421,16 +429,17 @@ class ModuleController extends ActionController
     }
 
     /**
-     * @param string $extension
+     * @param string $extkey
      * @param string $newFile
      *
      * @return ResponseInterface
      */
-    public function createFileAction(string $extension, string $newFile): ResponseInterface
+    public function createFileAction(string $extkey, string $newFile): ResponseInterface
     {
-        if (!isset($this->conf['extensions'][$extension])) {
-            throw new \UnexpectedValueException('Extension not allowed: ' . $extension);
+        if (!isset($this->conf['extensions'][$extkey])) {
+            throw new \UnexpectedValueException('Extension not allowed: ' . $extkey);
         }
+        $extension = $this->conf['extensions'][$extkey];
         if (!$this->conf['modifyKeys']) {
             throw new \UnexpectedValueException('Not allowed to modify keys');
         }
@@ -448,6 +457,10 @@ class ModuleController extends ActionController
             }
             if ($ok) {
                 /* copy the template file */
+                $dir = dirname($path);
+                if (!file_exists($dir)) {
+                    GeneralUtility::mkdir_deep($dir);
+                }
                 $src = realpath(__DIR__ . '/../../Resources/Private/Templates/Empty.xlf');
                 if (!@copy($src, $path)) {
                     $this->addFlashMessage('Could not create file', 'Error', AbstractMessage::ERROR);
@@ -456,7 +469,7 @@ class ModuleController extends ActionController
         }
 
         return (new ForwardResponse('list'))
-            ->withArguments(['extension' => $extension, 'file' => $newFile, 'sort' => FALSE]);
+            ->withArguments(['extkey' => $extkey, 'file' => $newFile, 'sort' => FALSE]);
     }
 
     /**

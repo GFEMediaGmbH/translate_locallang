@@ -32,9 +32,9 @@ class XliffService
     protected $data = [];
 
     /**
-    * @var string
+    * @var array
     */
-    protected $extension = '';
+    protected $extension = [];
 
     /**
     * @var string
@@ -67,14 +67,14 @@ class XliffService
     protected $languageLoaded = [];
 
     /**
-     * @param string $extension
+     * @param array $extension
      * @param string $file
      * @param string $sourcelang
      * @param bool $useL10n
      * @param bool $lockSourceLang
      * @return void
      */
-    public function init(string $extension, string $file, string $sourcelang = 'en', bool $useL10n = TRUE, bool $lockSourceLang = FALSE): void
+    public function init(array $extension, string $file, string $sourcelang = 'en', bool $useL10n = TRUE, bool $lockSourceLang = FALSE): void
     {
         $this->extension = $extension;
         $this->file = $file;
@@ -103,7 +103,7 @@ class XliffService
 
         //load overlay data
         if ($langKey !== 'default') {
-            //check for file in typo3conf/ext first
+            //check for file in extension directory first
             $fileref = TranslateUtility::getXlfPath($this->extension, $this->file, $langKey, FALSE);
 
             $addkeys = !$this->useL10n;
@@ -345,17 +345,17 @@ class XliffService
                 ]];
             }
         }
-        $xliffview = GeneralUtility::makeInstance(StandaloneView::class); 
-        $xliffview->setTemplatePathAndFilename(Environment::getPublicPath() . '/typo3conf/ext/translate_locallang/Resources/Private/Templates/Xliff.html');
+        $xliffview = GeneralUtility::makeInstance(StandaloneView::class);
+        $xliffview->setTemplatePathAndFilename('EXT:translate_locallang/Resources/Private/Templates/Xliff.html');
 
         date_default_timezone_set('UTC');
         $xliffview->assignMultiple([
             'labels' => $labels,
             'sourcelang' => $this->sourcelang,
             'targetlang' => ($langKey === 'default') ? NULL: $langKey,
-            'productname' => $this->extension,
+            'productname' => $this->extension['key'],
             'date' => date('Y-m-d\TH:i:s\Z'), //date('c')
-            'original' => 'EXT:' . $this->extension . '/' . TranslateUtility::getXlfRelPath($this->file, 'default'),
+            'original' => 'EXT:' . $this->extension['key'] . '/' . TranslateUtility::getXlfRelPath($this->file, 'default'),
         ]);
         return $xliffview->render();
     }
